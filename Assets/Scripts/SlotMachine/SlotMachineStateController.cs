@@ -8,7 +8,7 @@ using UnityEngine.UI;
 public class SlotMachineStateController : MonoBehaviour
 {
     ISlotMachineState currentState;
-    List<ISlotMachineState> states;
+    Dictionary<SlotMachineState ,ISlotMachineState> states;
 
     SlotMachine machine;
 
@@ -16,47 +16,51 @@ public class SlotMachineStateController : MonoBehaviour
     {
         machine = _machine;
 
-        states = new List<ISlotMachineState>
+        states = new Dictionary<SlotMachineState, ISlotMachineState>
         {
-            new SlotMachineIdle(machine, this),
-            new SlotMachineRolling(machine, this),
-            new SlotMachineResult(machine, this),
-            new SlotMachinePostResult(machine, this),
+            { SlotMachineState.IDLE, new SlotMachineIdle(machine, this) },
+            { SlotMachineState.ROLLING, new SlotMachineRolling(machine, this) },
+            { SlotMachineState.RESULT, new SlotMachineResult(machine, this) },
+            { SlotMachineState.POST_RESULT, new SlotMachinePostResult(machine, this) }
         };
 
-
-        currentState = states[0];
+        currentState = states[SlotMachineState.IDLE];
     }
 
-    public void ReceiveEvent(SlotMachineEvent e)
+    public void ReceiveEvent(SlotMachineEvent e, object data)
     {
-        int index = currentState.OnEvent(e);
+        SlotMachineState index = currentState.OnEvent(e, data);
 
-        if (index == -1)
+        if (index == SlotMachineState.NONE)
         {
             return;
         }
         else
         {
-            ChangeState(index);
+            ChangeState(index, data);
         }
     }
 
-    public void ChangeState(int index)
+    public void ChangeState(SlotMachineState index, object data)
     {
-        ChangeState(states[index]);
+        ChangeState(states[index], data);
     }
 
-    private void ChangeState(ISlotMachineState newState)
+    private void ChangeState(ISlotMachineState newState, object data)
     {
         currentState.OnExit();
         currentState = newState;
-        currentState.OnEnter();
+        currentState.OnEnter(data);
     }
 
     public void Update()
     {
         currentState.Update();
+    }
+
+    public ISlotMachineState GetState()
+    {
+        return currentState;
     }
 }
 
@@ -64,6 +68,15 @@ public enum SlotMachineEvent
 {
     START,
     STOP
+}
+
+public enum SlotMachineState
+{
+    NONE,
+    IDLE,
+    ROLLING,
+    RESULT,
+    POST_RESULT
 }
 
 public class SlotMachineIdle : ISlotMachineState
@@ -77,7 +90,7 @@ public class SlotMachineIdle : ISlotMachineState
         controller = _controller;
     }
 
-    public void OnEnter()
+    public void OnEnter(object data)
     {
 
     }
@@ -92,15 +105,15 @@ public class SlotMachineIdle : ISlotMachineState
 
     }
 
-    public int OnEvent(SlotMachineEvent e)
+    public SlotMachineState OnEvent(SlotMachineEvent e, object data)
     {
         if (e == SlotMachineEvent.START)
         {
-            return 1;
+            return SlotMachineState.ROLLING;
         }
         else
         {
-            return -1;
+            return SlotMachineState.NONE;
         }
     }
 }
@@ -118,7 +131,7 @@ public class SlotMachineRolling : ISlotMachineState
         controller = _controller;
     }
 
-    public void OnEnter()
+    public void OnEnter(object data)
     {
         phase = 0;
     }
@@ -159,15 +172,15 @@ public class SlotMachineRolling : ISlotMachineState
         }
     }
 
-    public int OnEvent(SlotMachineEvent e)
+    public SlotMachineState OnEvent(SlotMachineEvent e, object data)
     {
         if (e == SlotMachineEvent.STOP)
         {
-            return 2;
+            return SlotMachineState.RESULT;
         }
         else
         {
-            return -1;
+            return SlotMachineState.NONE;
         }
     }
 }
@@ -179,15 +192,22 @@ public class SlotMachineResult : ISlotMachineState
 
     bool moving; int index;
 
+    List<int> result;
+
     public SlotMachineResult(SlotMachine _machine, SlotMachineStateController _controller)
     {
         machine = _machine;
         controller = _controller;
     }
 
-    public void OnEnter()
+    public void OnEnter(object data)
     {
         moving = true; index = 0;
+
+        if (data != null)
+        {
+            result = (List<int>)data;
+        }
     }
 
     public void OnExit()
@@ -210,11 +230,11 @@ public class SlotMachineResult : ISlotMachineState
                     if (index == 3)
                     {
                         moving = false;
-                        controller.ChangeState(3);
+                        controller.ChangeState(SlotMachineState.POST_RESULT, null);
                     }
                     else
                     {
-                        int final = index + 1;
+                        int final = result[3 - index - 1];
                         item.GetComponent<Image>().sprite = Resources.Load<Sprite>("icon" + final);
                         index++;
                     }
@@ -223,9 +243,9 @@ public class SlotMachineResult : ISlotMachineState
         }
     }
 
-    public int OnEvent(SlotMachineEvent e)
+    public SlotMachineState OnEvent(SlotMachineEvent e, object data)
     {
-        return -1;
+        return SlotMachineState.NONE;
     }
 }
 
@@ -242,7 +262,7 @@ public class SlotMachinePostResult : ISlotMachineState
         controller = _controller;
     }
 
-    public void OnEnter()
+    public void OnEnter(object data)
     {
         phase = 0;
     }
@@ -275,25 +295,25 @@ public class SlotMachinePostResult : ISlotMachineState
                 if (item.GetComponent<RectTransform>().anchoredPosition3D.y >= 340f)
                 {
                     item.GetComponent<RectTransform>().anchoredPosition3D = new Vector3(0f, 340f, 0f);
-                    controller.ChangeState(0);
+                    controller.ChangeState(SlotMachineState.IDLE, null);
                 }
             }
         }
     }
 
-    public int OnEvent(SlotMachineEvent e)
+    public SlotMachineState OnEvent(SlotMachineEvent e, object data)
     {
-        return -1;
+        return SlotMachineState.NONE;
     }
 }
 
 public interface ISlotMachineState
 {
-    public void OnEnter();
+    public void OnEnter(object data);
 
     public void Update();
 
     public void OnExit();
 
-    public int OnEvent(SlotMachineEvent e);
+    public SlotMachineState OnEvent(SlotMachineEvent e, object data);
 }

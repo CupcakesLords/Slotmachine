@@ -1,26 +1,16 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI;
 
 public class InputSystem : MonoBehaviour
 {
-    //public SlotItem[] slot;
-    //private bool moving;
-    //private bool stop;
-
-    //private void Start()
-    //{
-    //    moving = false;
-    //    stop = false;
-
-    //    foreach (SlotItem item in slot)
-    //    {
-    //        Debug.Log(item.gameObject.GetComponent<RectTransform>().anchoredPosition3D);
-    //    }
-    //}
-
     public SlotMachineStateController slotmachineController;
     public SlotMachine slotmachine;
+
+    public Image[] choices;
+
+    List<int> input = new List<int>();
 
     private void Start()
     {
@@ -31,38 +21,35 @@ public class InputSystem : MonoBehaviour
     {
         if (Input.GetKeyDown("space"))
         {
-            slotmachineController.ReceiveEvent(SlotMachineEvent.START);
-        }
-
-        if (Input.GetKeyDown("a"))
-        {
-            slotmachineController.ReceiveEvent(SlotMachineEvent.STOP);
+            foreach (Image image in choices)
+            {
+                image.enabled = false;
+            }
+            slotmachineController.ReceiveEvent(SlotMachineEvent.START, null);
         }
     }
 
-    //private void LateUpdate()
-    //{
-    //    UpdatePosition();
-    //}
+    public void ButtonChooseSlot(int index)
+    {
+        if (slotmachineController.GetState() is SlotMachineRolling)
+        {
+            if (input.Count < 3)
+            {
+                input.Add(index);
 
-    //void UpdatePosition()
-    //{
-    //    if (moving)
-    //    {
-    //        foreach (SlotItem item in slot)
-    //        {
-    //            item.GetComponent<RectTransform>().anchoredPosition3D += Vector3.down * 1250f * Time.deltaTime;
+                choices[input.Count - 1].sprite = Resources.Load<Sprite>("icon" + index);
+                choices[input.Count - 1].enabled = true;
 
-    //            if (item.GetComponent<RectTransform>().anchoredPosition3D.y <= -340f)
-    //            {
-    //                item.GetComponent<RectTransform>().anchoredPosition3D = new Vector3(0f, 340f, 0f);
-
-    //                if (stop)
-    //                {
-    //                    moving = false;
-    //                }
-    //            }
-    //        }
-    //    }
-    //}
+                if (input.Count == 3)
+                {
+                    slotmachineController.ReceiveEvent(SlotMachineEvent.STOP, new List<int> { input[0], input[1], input[2] });
+                    input.Clear();
+                }
+            }
+        }
+        else
+        {
+            Debug.Log("Input only allowed during rolling");
+        }
+    }
 }
